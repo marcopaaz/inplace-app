@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+jobs/
+.env
+.env.*
+!.env.example
+.cursor/
+samples/*.mp4
+samples/*.mov
+samples/*.MP4
+samples/*.MOV

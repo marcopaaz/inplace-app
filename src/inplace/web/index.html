@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inplace</title>
+  <style>
+    :root {
+      --paper: #f3efe6;
+      --card: #faf7f1;
+      --ink: #1c1915;
+      --muted: #665f56;
+      --line: #d9d1c3;
+      --green: #0c6b52;
+      --amber: #8a5a12;
+      --red: #8d2f2f;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+    }
+    button, input, textarea, .meta, .stage, .field, .chip, .metrics span, .jobline, .drop-note {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 2.75rem 1.25rem 4rem;
+    }
+    .eyebrow {
+      margin: 0 0 0.4rem;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1 { margin: 0; font-size: 3rem; font-weight: 500; letter-spacing: -0.03em; }
+    .lede { margin: 0.6rem 0 0; max-width: 36rem; font-size: 1.2rem; line-height: 1.4; }
+    .drop {
+      display: grid;
+      gap: 0.35rem;
+      justify-items: center;
+      margin-top: 2rem;
+      padding: 2.4rem 1rem;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: var(--card);
+      cursor: pointer;
+      text-align: center;
+    }
+    .drop.hot { border-color: var(--ink); }
+    .drop input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .drop-title { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: 1.6rem; }
+    .drop-note { color: var(--muted); font-size: 0.92rem; }
+    .error {
+      margin: 1rem 0 0;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      background: #f6e4e0;
+      color: var(--red);
+    }
+    .jobline {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: baseline;
+      margin-top: 1.5rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .jobline p { margin: 0; }
+    .jobline button, .text-button {
+      background: none;
+      border: 0;
+      padding: 0;
+      color: var(--ink);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .phase { min-height: 1.4rem; margin: 1rem 0 0; font-size: 1.15rem; }
+    .stages { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+    .stage { display: flex; gap: 0.6rem; align-items: center; color: var(--muted); }
+    .stage.done, .stage.active { color: var(--ink); }
+    .stage.error { color: var(--red); }
+    .mark {
+      width: 0.55rem;
+      height: 0.55rem;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .stage.done .mark, .stage.error .mark { background: currentColor; }
+    .stage.active .mark { background: var(--green); border-color: var(--green); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.35; } }
+    .score {
+      margin: 1.2rem 0 0;
+      font-size: 4.5rem;
+      line-height: 0.85;
+      letter-spacing: -0.04em;
+    }
+    .score span {
+      display: block;
+      margin-top: 0.45rem;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .score.placeable span { color: var(--green); }
+    .score.warning span { color: var(--amber); }
+    .score.stopped span { color: var(--red); }
+    .note, .reasons, .rejected { color: var(--muted); }
+    .reasons, .rejected { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+      margin: 1rem 0;
+    }
+    .metrics p { margin: 0; }
+    .metrics strong {
+      display: block;
+      font-family: "Iowan Old Style", Palatino, Georgia, serif;
+      font-size: 1.7rem;
+      font-weight: 500;
+    }
+    .metrics span { color: var(--muted); font-size: 0.85rem; }
+    .preview, .compare { margin-top: 1rem; background: #16130f; border-radius: 10px; overflow: hidden; }
+    .preview { width: 100%; display: block; max-height: 70vh; }
+    .compare { position: relative; }
+    .compare video { width: 100%; display: block; }
+    .compare video.after {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    .split-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      margin-left: -1px;
+      background: white;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+    .compare-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 0.7rem;
+    }
+    .split { display: flex; gap: 0.6rem; align-items: center; flex: 1; color: var(--muted); font-size: 0.85rem; }
+    .split input { flex: 1; }
+    #windows, #posters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.7rem; margin-top: 1rem; }
+    .window, .poster {
+      position: relative;
+      display: grid;
+      gap: 0.35rem;
+      padding: 0.45rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+      text-align: left;
+      color: inherit;
+    }
+    .window { cursor: pointer; }
+    .poster { cursor: pointer; font: inherit; }
+    .window input { position: absolute; opacity: 0; }
+    .window:has(input:checked), .poster.selected, .window:focus-within { border-color: var(--ink); }
+    .window img, .poster img, .placeholder {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      background: #e4ddd0;
+      display: block;
+    }
+    .window small, .poster small { color: var(--muted); }
+    .fields { display: grid; gap: 0.75rem; margin-top: 1.1rem; }
+    .field { display: grid; gap: 0.3rem; font-size: 0.85rem; }
+    input[type="text"], textarea {
+      width: 100%;
+      font: inherit;
+      color: inherit;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.55rem 0.7rem;
+    }
+    textarea { min-height: 4.4rem; resize: vertical; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+    }
+    .chip.selected { background: var(--ink); color: var(--paper); }
+    #go, .download {
+      margin-top: 0.4rem;
+      background: var(--ink);
+      color: var(--paper);
+      border: 0;
+      border-radius: 999px;
+      padding: 0.7rem 1.15rem;
+      text-decoration: none;
+      cursor: pointer;
+      font: inherit;
+    }
+    #go:disabled { opacity: 0.45; cursor: progress; }
+    .download { display: inline-block; margin-top: 0; }
+    :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    @media (max-width: 640px) {
+      h1 { font-size: 2.4rem; }
+      .score { font-size: 3.3rem; }
+      .metrics { grid-template-columns: 1fr; }
+      #windows, #posters { grid-template-columns: 1fr; }
+      .compare-controls { flex-direction: column; align-items: stretch; }
+      main { padding: 1.6rem 1rem 3rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Virtual placement</p>
+    <h1>Inplace</h1>
+    <p class="lede">Score a clip, pick a flat surface, and place a fictional poster.</p>
+    <label class="drop" id="drop">
+      <input id="file" type="file" accept="video/mp4,.mp4">
+      <span class="drop-title">Drop an MP4</span>
+      <span class="drop-note">Up to 3 minutes at 1080p. Checking and placing call the Meta model API.</span>
+    </label>
+    <p id="error" class="error" role="alert" hidden></p>
+    <section id="work" hidden>
+      <div class="jobline">
+        <p id="jobline"></p>
+        <button type="button" id="new-video">New video</button>
+      </div>
+      <p id="phase" class="phase" aria-live="polite"></p>
+      <div id="stages"></div>
+      <div id="score"></div>
+      <div id="result"></div>
+      <div id="windows"></div>
+      <div id="posters"></div>
+      <div id="form-slot"></div>
+    </section>
+  </main>
+  <script>
+    const PHASE_COPY = {
+      checking: "Scoring this video",
+      ready: "Choose a window and a brand",
+      making_posters: "Generating three posters",
+      choose: "Pick a poster",
+      rendering: "Placing the poster",
+      done: "The placement is ready",
+      error: ""
+    };
+    let brands = [];
+    let jobId = null;
+    let currentJob = null;
+    let timer = null;
+    let sending = false;
+    let creativePick = 0;
+    let setupKey = "";
+    let posterKey = "";
+    let resultKey = "";
+    let stageKey = "";
+    let scoreKey = "";
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    function seconds(value) {
+      return Number(value).toFixed(1);
+    }
+
+    function percent(value) {
+      return (Number(value) * 100).toFixed(1) + "%";
+    }
+
+    async function readError(response) {
+      try {
+        const payload = await response.json();
+        if (payload && typeof payload.detail === "string") return payload.detail;
+      } catch (error) {
+        return "The request failed";
+      }
+      return "The request failed";
+    }
+
+    function showError(message) {
+      const el = document.getElementById("error");
+      if (!message) {
+        el.hidden = true;
+        el.textContent = "";
+        return;
+      }
+      el.hidden = false;
+      el.textContent = message;
+    }
+
+    function fieldValue(id) {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : "";
+    }
+
+    function formPayload() {
+      const selected = document.querySelector("input[name=window]:checked");
+      return {
+        window: selected ? Number(selected.value) : 0,
+        brand: fieldValue("brand"),
+        description: fieldValue("description"),
+        style: fieldValue("style")
+      };
+    }
+
+    function postersMatch(job) {
+      if (!job || !job.placement || job.creatives.length !== 3) return false;
+      const payload = formPayload();
+      const brand = job.placement.brand;
+      return payload.window === job.placement.window_index
+        && payload.brand === brand.name
+        && payload.description === brand.description
+        && payload.style === brand.style;
+    }
+
+    function working(job) {
+      return job && (job.phase === "checking" || job.phase === "making_posters" || job.phase === "rendering");
+    }
+
+    function refreshAction(job) {
+      const button = document.getElementById("go");
+      if (!button || !job) return;
+      const stopped = job.report && job.report.status === "stopped";
+      button.disabled = sending || working(job) || stopped || !job.report;
+      if (working(job)) {
+        button.textContent = "Working";
+        return;
+      }
+      if (stopped) {
+        button.textContent = "This video is not placeable";
+        return;
+      }
+      button.textContent = postersMatch(job) ? "Place poster " + (creativePick + 1) : "Make three posters";
+      document.querySelectorAll(".chip").forEach((chip) => {
+        chip.classList.toggle("selected", chip.dataset.name === fieldValue("brand"));
+      });
+    }
+
+    function renderJobline(job) {
+      const bits = ["Job " + job.id];
+      if (job.video) {
+        bits.push(seconds(job.video.duration_s) + "s");
+        bits.push(job.video.width + "×" + job.video.height);
+      }
+      document.getElementById("jobline").textContent = bits.join(" · ");
+    }
+
+    function renderStages(job) {
+      const key = job.phase + JSON.stringify(job.check_stages) + JSON.stringify(job.render_stages) + (job.error || "");
+      if (key === stageKey) return;
+      stageKey = key;
+      const host = document.getElementById("stages");
+      const show = job.phase === "checking" || job.phase === "making_posters" || job.phase === "rendering" || job.phase === "error";
+      if (!show) {
+        host.innerHTML = "";
+        return;
+      }
+      const renderVisible = job.render_stages.some((stage) => stage.state !== "pending")
+        || job.phase === "making_posters"
+        || job.phase === "rendering";
+      const rows = renderVisible ? job.check_stages.concat(job.render_stages) : job.check_stages;
+      host.innerHTML = "<ol class=\"stages\">" + rows.map((stage) => (
+        "<li class=\"stage " + esc(stage.state) + "\"><span class=\"mark\"></span>" + esc(stage.label) + "</li>"
+      )).join("") + "</ol>";
+    }
+
+    function renderScore(job) {
+      const host = document.getElementById("score");
+      if (!job.report) {
+        scoreKey = "";
+        host.innerHTML = "";
+        return;
+      }
+      const key = JSON.stringify([job.report.score, job.report.status, job.report.reasons, job.report.rejected]);
+      if (key === scoreKey) return;
+      scoreKey = key;
+      const notes = {
+        placeable: "",
+        warning: "This score is in the warning range. You can still place a poster.",
+        stopped: ""
+      };
+      const note = notes[job.report.status] || "";
+      const reasons = (job.report.reasons || []).map((reason) => "<li>" + esc(reason) + "</li>").join("");
+      const rejected = (job.report.rejected || []).map((item) => (
+        "<li>" + seconds(item.start_s) + "–" + seconds(item.end_s) + "s " + esc(item.surface_label) + ": " + esc(item.reason) + "</li>"
+      )).join("");
+      host.innerHTML = ""
+        + "<p class=\"score " + esc(job.report.status) + "\">" + Math.round(job.report.score)
+        + "<span>" + esc(job.report.status) + "</span></p>"
+        + (note ? "<p class=\"note\">" + esc(note) + "</p>" : "")
+        + (reasons ? "<ul class=\"reasons\">" + reasons + "</ul>" : "")
+        + (rejected ? "<ul class=\"rejected\">" + rejected + "</ul>" : "");
+    }
+
+    function renderSetup(job) {
+      if (!job.report) {
+        if (setupKey !== "") {
+          setupKey = "";
+          document.getElementById("windows").innerHTML = "";
+          document.getElementById("form-slot").innerHTML = "";
+        }
+        return;
+      }
+      const key = JSON.stringify([job.report.status, job.report.windows, job.placement && job.placement.window_index]);
+      if (key === setupKey) return;
+      setupKey = key;
+      const selected = job.placement ? job.placement.window_index : 0;
+      const brand = job.placement ? job.placement.brand : { name: "", description: "", style: "" };
+      const windows = document.getElementById("windows");
+      windows.innerHTML = (job.report.windows || []).map((window, index) => {
+        const thumb = window.thumbnail
+          ? "<img src=\"" + esc(window.thumbnail) + "\" alt=\"\">"
+          : "<span class=\"placeholder\"></span>";
+        return "<label class=\"window\">"
+          + "<input type=\"radio\" name=\"window\" value=\"" + index + "\"" + (index === selected ? " checked" : "") + ">"
+          + thumb
+          + "<span>" + seconds(window.start_s) + "–" + seconds(window.end_s) + "s · " + esc(window.surface_label)
+          + " · " + Math.round(window.window_score) + "</span>"
+          + "<small>" + esc(window.sam_prompt) + "</small>"
+          + "</label>";
+      }).join("");
+      const form = document.getElementById("form-slot");
+      if (job.report.status === "stopped") {
+        form.innerHTML = "";
+        return;
+      }
+      const chips = brands.map((item) => (
+        "<button type=\"button\" class=\"chip\" data-name=\"" + esc(item.name) + "\">" + esc(item.name) + "</button>"
+      )).join("");
+      form.innerHTML = "<form id=\"brief\">"
+        + "<div class=\"fields\">"
+        + "<div class=\"chips\">" + chips + "</div>"
+        + "<label class=\"field\">Brand<input id=\"brand\" type=\"text\" value=\"" + esc(brand.name) + "\" autocomplete=\"off\"></label>"
+        + "<label class=\"field\">Description<textarea id=\"description\">" + esc(brand.description) + "</textarea></label>"
+        + "<label class=\"field\">Style<input id=\"style\" type=\"text\" value=\"" + esc(brand.style) + "\" autocomplete=\"off\"></label>"
+        + "<button type=\"submit\" id=\"go\">Make three posters</button>"
+        + "</div></form>";
+    }
+
+    function renderPosters(job) {
+      const key = job.creatives.join("|");
+      if (key === posterKey) return;
+      posterKey = key;
+      const host = document.getElementById("posters");
+      if (!job.creatives.length) {
+        host.innerHTML = "";
+        return;
+      }
+      if (creativePick >= job.creatives.length) creativePick = 0;
+      host.innerHTML = job.creatives.map((url, index) => (
+        "<button type=\"button\" class=\"poster" + (index === creativePick ? " selected" : "") + "\" data-creative=\"" + index + "\">"
+        + "<img src=\"" + esc(url) + "\" alt=\"Poster " + (index + 1) + "\">"
+        + "<small>Poster " + (index + 1) + "</small>"
+        + "</button>"
+      )).join("");
+    }
+
+    function highlightPoster() {
+      document.querySelectorAll(".poster").forEach((button) => {
+        button.classList.toggle("selected", Number(button.dataset.creative) === creativePick);
+      });
+    }
+
+    function renderResult(job) {
+      const key = [job.before_url, job.after_url, job.source_url, JSON.stringify(job.visibility), JSON.stringify(job.render)].join("|");
+      if (key === resultKey) return;
+      resultKey = key;
+      const host = document.getElementById("result");
+      if (job.after_url && job.before_url) {
+        const visibility = job.visibility || {};
+        const jitter = job.render && typeof job.render.jitter_rms === "number"
+          ? "<p class=\"note\">Corner jitter " + job.render.jitter_rms.toFixed(2) + " px</p>"
+          : "";
+        const flags = job.render && job.render.qa_flags && job.render.qa_flags.length
+          ? "<ul class=\"reasons\">" + job.render.qa_flags.map((flag) => "<li>" + esc(flag) + "</li>").join("") + "</ul>"
+          : "";
+        host.innerHTML = ""
+          + "<div class=\"metrics\">"
+          + "<p><strong>" + seconds(visibility.seconds_on_screen || 0) + "s</strong><span>on screen</span></p>"
+          + "<p><strong>" + percent(visibility.average_share_of_frame || 0) + "</strong><span>of the frame</span></p>"
+          + "<p><strong>" + percent(visibility.share_of_time_occluded || 0) + "</strong><span>occluded while up</span></p>"
+          + "</div>"
+          + jitter + flags
+          + "<div class=\"compare\">"
+          + "<video id=\"before\" src=\"" + esc(job.before_url) + "\" controls playsinline></video>"
+          + "<video id=\"after\" class=\"after\" src=\"" + esc(job.after_url) + "\" playsinline muted></video>"
+          + "<div class=\"split-line\" id=\"split-line\"></div>"
+          + "</div>"
+          + "<div class=\"compare-controls\">"
+          + "<label class=\"split\">Before<input id=\"split\" type=\"range\" min=\"0\" max=\"100\" value=\"100\" aria-label=\"Before and after split\">After</label>"
+          + "<a class=\"download\" href=\"" + esc(job.after_url) + "\" download=\"inplace.mp4\">Download</a>"
+          + "</div>";
+        bindCompare();
+        return;
+      }
+      if (job.source_url && job.report) {
+        host.innerHTML = "<video class=\"preview\" src=\"" + esc(job.source_url) + "\" controls playsinline></video>";
+        return;
+      }
+      host.innerHTML = "";
+    }
+
+    function bindCompare() {
+      const before = document.getElementById("before");
+      const after = document.getElementById("after");
+      const split = document.getElementById("split");
+      const line = document.getElementById("split-line");
+      const apply = () => {
+        const shown = Number(split.value);
+        after.style.clipPath = "inset(0 0 0 " + (100 - shown) + "%)";
+        line.style.left = (100 - shown) + "%";
+      };
+      split.addEventListener("input", apply);
+      apply();
+      const sync = () => {
+        if (Math.abs(after.currentTime - before.currentTime) > 0.2) after.currentTime = before.currentTime;
+      };
+      before.addEventListener("play", () => {
+        sync();
+        after.play().catch(() => {});
+      });
+      before.addEventListener("pause", () => after.pause());
+      before.addEventListener("seeked", sync);
+      before.addEventListener("timeupdate", sync);
+    }
+
+    function paint(job) {
+      currentJob = job;
+      showError(job.error);
+      const stopped = job.report && job.report.status === "stopped";
+      document.getElementById("phase").textContent = stopped
+        ? "This video is not placeable"
+        : (PHASE_COPY[job.phase] || "");
+      renderJobline(job);
+      renderStages(job);
+      renderScore(job);
+      renderResult(job);
+      renderSetup(job);
+      renderPosters(job);
+      refreshAction(job);
+    }
+
+    async function poll() {
+      if (!jobId) return;
+      let response;
+      try {
+        response = await fetch("/api/jobs/" + jobId);
+      } catch (error) {
+        showError("The page lost contact with Inplace");
+        timer = setTimeout(poll, 2000);
+        return;
+      }
+      if (!response.ok) {
+        showError(await readError(response));
+        return;
+      }
+      const job = await response.json();
+      paint(job);
+      if (working(job)) timer = setTimeout(poll, 1000);
+    }
+
+    function startJob(id) {
+      if (timer) clearTimeout(timer);
+      jobId = id;
+      currentJob = null;
+      setupKey = "reset";
+      posterKey = "reset";
+      resultKey = "reset";
+      stageKey = "reset";
+      scoreKey = "reset";
+      creativePick = 0;
+      const url = new URL(location.href);
+      url.searchParams.set("job", id);
+      history.replaceState(null, "", url);
+      document.getElementById("drop").hidden = true;
+      document.getElementById("work").hidden = false;
+      poll();
+    }
+
+    function newVideo() {
+      if (timer) clearTimeout(timer);
+      jobId = null;
+      currentJob = null;
+      history.replaceState(null, "", location.pathname);
+      document.getElementById("work").hidden = true;
+      document.getElementById("drop").hidden = false;
+      showError("");
+    }
+
+    async function upload(file) {
+      if (!file.name.toLowerCase().endsWith(".mp4")) {
+        showError("Only MP4 uploads are accepted");
+        return;
+      }
+      showError("");
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/jobs", { method: "POST", body });
+      if (!response.ok) {
+        showError(await readError(response));
+        return;
+      }
+      const payload = await response.json();
+      startJob(payload.id);
+    }
+
+    async function submit(event) {
+      event.preventDefault();
+      if (sending || !currentJob || !jobId) return;
+      if (working(currentJob) || (currentJob.report && currentJob.report.status === "stopped")) return;
+      sending = true;
+      refreshAction(currentJob);
+      const placing = postersMatch(currentJob);
+      try {
+        const response = await fetch(placing ? "/api/jobs/" + jobId + "/render" : "/api/jobs/" + jobId + "/posters", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(placing ? { creative: creativePick } : formPayload())
+        });
+        if (!response.ok) {
+          showError(await readError(response));
+          return;
+        }
+        await poll();
+      } finally {
+        sending = false;
+        refreshAction(currentJob);
+      }
+    }
+
+    document.getElementById("file").addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) upload(file);
+      event.target.value = "";
+    });
+    const drop = document.getElementById("drop");
+    drop.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      drop.classList.add("hot");
+    });
+    drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
+    drop.addEventListener("drop", (event) => {
+      event.preventDefault();
+      drop.classList.remove("hot");
+      const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (file) upload(file);
+    });
+    document.getElementById("new-video").addEventListener("click", newVideo);
+    document.getElementById("work").addEventListener("submit", submit);
+    document.getElementById("work").addEventListener("input", () => refreshAction(currentJob));
+    document.getElementById("work").addEventListener("click", (event) => {
+      const chip = event.target.closest(".chip");
+      if (chip) {
+        const brand = brands.find((item) => item.name === chip.dataset.name);
+        if (!brand) return;
+        document.getElementById("brand").value = brand.name;
+        document.getElementById("description").value = brand.description;
+        document.getElementById("style").value = brand.style;
+        refreshAction(currentJob);
+        return;
+      }
+      const poster = event.target.closest(".poster");
+      if (!poster) return;
+      creativePick = Number(poster.dataset.creative);
+      highlightPoster();
+      refreshAction(currentJob);
+    });
+
+    fetch("/api/brands")
+      .then((response) => response.json())
+      .then((items) => {
+        brands = items;
+        const id = new URLSearchParams(location.search).get("job");
+        if (id) startJob(id);
+      })
+      .catch(() => showError("The page could not load brands"));
+  </script>
+</body>
+</html>
